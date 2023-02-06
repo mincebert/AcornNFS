@@ -1,3 +1,9 @@
+
+IF VERSION=&0365
+ SKIPTO &9650
+; EQUS STRING$(&9650-P%,CHR$(255))
+ENDIF
+
 \ ======================== 
 \ LOW LEVEL ECONET CONTROL
 \ ======================== 
@@ -24,7 +30,7 @@ CPY #&86:BCS L9672     :\ If Halt/Cont/MType, skip past
 LDA &0D63:STA &0D65    :\ Save protection mask
 ORA #&1C:STA &0D63     :\ Protect against OSProc/UserProc/JSR
 .L9672
-LDA #&9B:PHA           :\ Push high byte of subroutine
+LDA #L9B20 DIV 256:PHA :\ Push high byte of subroutine
 LDA L9B20-&83,Y:PHA:RTS:\ Push low byte of subroutine and jump to it
 
 \ Initialise drivers
@@ -63,7 +69,8 @@ CMP &FE18:BEQ L96D7      :\ Dest=me
 CMP #&FF:BNE L96EA       :\ Dest=not me & not broadcast
 LDA #&40:STA &0D4A       :\ Note that broadcast being received
 .L96D7
-LDA #&DC:JMP &0D11       :\ Continue receiving this frame
+LDA #L96DC AND 255
+JMP &0D11                :\ Continue receiving this frame
 
 .L96DC 
 BIT &FEA1       :\ 96DC= 2C A1 FE    ,!~
@@ -80,8 +87,8 @@ JMP L99EB
 STA &0D4A       :\ 96F2= 8D 4A 0D    .J.
 .L96F5
 STA &A2         :\ 96F5= 85 A2       ."
-LDA #&0E        :\ 96F7= A9 0E       ).
-LDY #&97        :\ 96F9= A0 97        .
+LDA #L970E AND 255 :\ 96F7= A9 0E       ).
+LDY #L970E DIV 256 :\ 96F9= A0 97        .
 JMP &0D0E       :\ 96FB= 4C 0E 0D    L..
  
 \ Second byte or later
@@ -137,7 +144,7 @@ BIT &0D4A:BVC L976B       :\ Not a broadcast
 LDA #&07:STA &FEA1        :\ Ok to ALDC
 .L976B
 BIT &0D64:BPL L97AE       :\
-LDA #&C0:LDY #&00         :\ Look at receive block at &00C0, (FSOp block?)
+LDA #&C0:LDY #&00         :\ Look at receive block at &00C0, (FSOp block)
 
 \ Search receive blocks
 \ ---------------------
@@ -179,32 +186,37 @@ JMP L99F2
 .L97CB
 LDA #&44:STA &FEA0
 LDA #&A7:STA &FEA1
-LDA #&DC:LDY #&97         :\ Next NMI handler=&97DC
+LDA #L97DC AND 255
+LDY #L97DC DIV 256        :\ Next NMI handler=&97DC
 JMP L9907                 :\ Return to NMI routine
  
 .L97DC
-LDA #&82        :\ 97DC= A9 82       ).
-STA &FEA0       :\ 97DE= 8D A0 FE    . ~
-LDA #&E6        :\ Next NMI handler=&97E6
-JMP &0D11       :\ Set next NMI routine and return
+LDA #&82:STA &FEA0
+LDA #L97E6 AND 255  :\ Next NMI handler=&97E6
+IF (P% AND 255)>&10
+ JMP &0D11          :\ Set next NMI routine and return
+ELSE
+ LDY #L97E6 DIV 256 :\ Next NMI handler=&97E6
+ JMP &0D0E          :\ Set next NMI routine and return
+ENDIF
  
 .L97E6
-LDA #&01        :\ 97E6= A9 01       ).
-BIT &FEA1       :\ 97E8= 2C A1 FE    ,!~
-BEQ L9835       :\ 97EB= F0 48       pH
-LDA &FEA2       :\ 97ED= AD A2 FE    -"~
-CMP &FE18       :\ 97F0= CD 18 FE    M.~
-BNE L9835       :\ 97F3= D0 40       P@
-LDA #&FA        :\ 97F5= A9 FA       )z
-JMP &0D11       :\ 97F7= 4C 11 0D    L..
+LDA #&01           :\ 97E6= A9 01       ).
+BIT &FEA1          :\ 97E8= 2C A1 FE    ,!~
+BEQ L9835          :\ 97EB= F0 48       pH
+LDA &FEA2          :\ 97ED= AD A2 FE    -"~
+CMP &FE18          :\ 97F0= CD 18 FE    M.~
+BNE L9835          :\ 97F3= D0 40       P@
+LDA #L97FA AND 255 :\ 97F5= A9 FA       )z
+JMP &0D11          :\ 97F7= 4C 11 0D    L..
  
 .L97FA
 BIT &FEA1       :\ 97FA= 2C A1 FE    ,!~
 BPL L9835       :\ 97FD= 10 36       .6
 LDA &FEA2       :\ 97FF= AD A2 FE    -"~
 BNE L9835       :\ 9802= D0 31       P1
-LDA #&10        :\ 9804= A9 10       ).
-LDY #&98        :\ 9806= A0 98        .
+LDA #L9810 AND 255 :\ 9804= A9 10       ).
+LDY #L9810 DIV 256 :\ 9806= A0 98        .
 BIT &FEA0       :\ 9808= 2C A0 FE    , ~
 BMI L9810       :\ 980B= 30 03       0.
 JMP &0D0E       :\ 980D= 4C 0E 0D    L..
@@ -218,15 +230,15 @@ LDA &FEA2       :\ 9818= AD A2 FE    -"~
 LDA #&02        :\ 981B= A9 02       ).
 BIT &0D4A       :\ 981D= 2C 4A 0D    ,J.
 BNE L982E       :\ 9820= D0 0C       P.
-LDA #&43        :\ 9822= A9 43       )C
-LDY #&98        :\ 9824= A0 98        .
+LDA #L9843 AND 255 :\ 9822= A9 43       )C
+LDY #L9843 DIV 256 :\ 9824= A0 98        .
 BIT &FEA0       :\ 9826= 2C A0 FE    , ~
 BMI L9843       :\ 9829= 30 18       0.
 JMP &0D0E       :\ 982B= 4C 0E 0D    L..
  
 .L982E
-LDA #&A0        :\ 982E= A9 A0       ) 
-LDY #&98        :\ 9830= A0 98        .
+LDA #L98A0 AND 255 :\ 982E= A9 A0       ) 
+LDY #L98A0 DIV 256 :\ 9830= A0 98        .
 JMP &0D0E       :\ 9832= 4C 0E 0D    L..
  
 .L9835
@@ -336,8 +348,8 @@ LDA #&44        :\ 98F9= A9 44       )D
 STA &FEA0       :\ 98FB= 8D A0 FE    . ~
 LDA #&A7        :\ 98FE= A9 A7       )'
 STA &FEA1       :\ 9900= 8D A1 FE    .!~
-LDA #&95        :\ 9903= A9 95       ).
-LDY #&99        :\ 9905= A0 99        .
+LDA #L9995 AND 255 :\ 9903= A9 95       ).
+LDY #L9995 DIV 256 :\ 9905= A0 99        .
 .L9907
 STA &0D4B       :\ 9907= 8D 4B 0D    .K.
 STY &0D4C       :\ 990A= 8C 4C 0D    .L.
@@ -347,8 +359,8 @@ BVC L994B       :\ 9913= 50 36       P6
 STA &FEA2       :\ 9915= 8D A2 FE    ."~
 LDA &0D3E       :\ 9918= AD 3E 0D    ->.
 STA &FEA2       :\ 991B= 8D A2 FE    ."~
-LDA #&25        :\ 991E= A9 25       )%
-LDY #&99        :\ 9920= A0 99        .
+LDA #L9925 AND 255 :\ 991E= A9 25       )%
+LDY #L9925 DIV 256 :\ 9920= A0 99        .
 JMP &0D0E       :\ 9922= 4C 0E 0D    L..
 
 .L9925 
@@ -469,8 +481,8 @@ JSR L9A2B       :\ 99E5= 20 2B 9A     +.
 .L99E8
 JSR L9F4C       :\ 99E8= 20 4C 9F     L.
 .L99EB
-LDA #&BF        :\ 99EB= A9 BF       )?
-LDY #&96        :\ 99ED= A0 96        .
+LDA #L96BF AND 255 :\ 99EB= A9 BF       )?
+LDY #L96BF DIV 256 :\ 99ED= A0 96        .
 JMP &0D0E       :\ 99EF= 4C 0E 0D    L..
  
 .L99F2
@@ -597,8 +609,8 @@ JMP L97B9
 .L9AAA 
 LDA #&01:STA &A3   :\ Length=&01FC
 LDA #&FC:STA &A2
-LDA #&25:STA &A4   :\ Address=&7F25
-LDA #&7F:STA &A5   :\ &7F25+&FC=L8021 -> machine info block
+LDA #(L8021-&FC) AND 255:STA &A4 :\ Address=&7F25
+LDA #(L8021-&FC) DIV 256:STA &A5 :\ &7F25+&FC=L8021 -> machine info block
 BNE L9ACE
 
 \ Immediate &81 - Peek
@@ -616,7 +628,8 @@ LDA &0D4A:ORA #&80:STA &0D4A
 .L9AD6
 LDA #&44:STA &FEA0
 LDA #&A7:STA &FEA1
-LDA #&FD:LDY #&9A
+LDA #L9AFD AND 255
+LDY #L9AFD DIV 256
 JMP L9907
  
 .L9AE7
@@ -631,6 +644,7 @@ STA (&9C),Y     :\ 9AF5= 91 9C       ..
 INY             :\ 9AF7= C8          H
 LDA &0D3E       :\ 9AF8= AD 3E 0D    ->.
 STA (&9C),Y     :\ 9AFB= 91 9C       ..
+.L9AFD
 LDA &0D3F       :\ 9AFD= AD 3F 0D    -?.
 STA &0D57       :\ 9B00= 8D 57 0D    .W.
 LDA #&84        :\ 9B03= A9 84       ).
@@ -764,12 +778,22 @@ PHA             :\ 9BD9= 48          H
 PHA             :\ 9BDA= 48          H
 LDY #&E7        :\ 9BDB= A0 E7        g
 .L9BDD
-LDA #&04        :\ 9BDD= A9 04       ).
-PHP             :\ 9BDF= 08          .
-SEI             :\ 9BE0= 78          x
-.L9BE1
-BIT &FE18       :\ 9BE1= 2C 18 FE    ,.~
-BIT &FE18       :\ 9BE4= 2C 18 FE    ,.~
+IF VERSION<&0365
+ LDA #&04       :\ 9BDD= A9 04       ).
+ PHP            :\ 9BDF= 08          .
+ SEI            :\ 9BE0= 78          x
+ .L9BE1
+ BIT &FE18      :\ Disable ALDC NMIs
+ BIT &FE18      :\ Do it twice in case one squeezed through
+ELSE
+ PHP            :\ 9BDF= 08          .
+ SEI            :\ 9BE0= 78          x
+ LDA #&40
+ STA &0D1C      :\ Remove re-enable code in NMI routine
+ .L9BE1
+ BIT &FE18      :\ Disable ALDC NMIs
+ LDA #&04
+ENDIF
 BIT &FEA1       :\ 9BE7= 2C A1 FE    ,!~
 BEQ L9BFB       :\ 9BEA= F0 0F       p.
 LDA &FEA0       :\ 9BEC= AD A0 FE    - ~
@@ -779,6 +803,10 @@ LDA #&10        :\ 9BF4= A9 10       ).
 BIT &FEA0       :\ 9BF6= 2C A0 FE    , ~
 BNE L9C2F       :\ 9BF9= D0 34       P4
 .L9BFB
+IF VERSION>=&0365
+ LDA #&2C       :\ Restore re-enable code
+ STA &0D1C
+ENDIF
 BIT &FE20       :\ 9BFB= 2C 20 FE    , ~
 PLP             :\ 9BFE= 28          (
 TSX             :\ 9BFF= BA          :
@@ -812,40 +840,54 @@ TAX             :\ 9C2D= AA          *
 RTS             :\ 9C2E= 60          `
  
 .L9C2F
+IF VERSION>=&0365
+ LDX #&C0
+ STX &FEA0
+ENDIF
 STY &FEA1       :\ 9C2F= 8C A1 FE    .!~
 LDX #&44        :\ 9C32= A2 44       "D
 STX &FEA0       :\ 9C34= 8E A0 FE    . ~
-LDX #&CC        :\ 9C37= A2 CC       "L
-LDY #&9C        :\ 9C39= A0 9C        .
+LDX #L9CCC AND 255 :\ 9C37= A2 CC       "L
+LDY #L9CCC DIV 256 :\ 9C39= A0 9C        .
 STX &0D0C       :\ 9C3B= 8E 0C 0D    ...
 STY &0D0D       :\ 9C3E= 8C 0D 0D    ...
 SEC             :\ 9C41= 38          8
 ROR &98         :\ 9C42= 66 98       f.
+IF VERSION>=&0365
+ LDA #&2C
+ STA &0D1C
+ENDIF
 BIT &FE20       :\ 9C44= 2C 20 FE    , ~
 LDA &0D25       :\ 9C47= AD 25 0D    -%.
 BNE L9C8E       :\ 9C4A= D0 42       PB
 LDY &0D24       :\ 9C4C= AC 24 0D    ,$.
-LDA L9E40+1,Y   :\ 9C4F= B9 41 9E    9A.
+LDA L9EC2-&81,Y :\ 9C4F= B9 41 9E    9A.
 STA &0D4A       :\ 9C52= 8D 4A 0D    .J.
-LDA L9E38+1,Y   :\ 9C55= B9 39 9E    99.
+LDA L9EBA-&81,Y :\ 9C55= B9 39 9E    99.
 STA &0D50       :\ 9C58= 8D 50 0D    .P.
-LDA #&9C        :\ 9C5B= A9 9C       ).
-PHA             :\ 9C5D= 48          H
-LDA L9BE1+1,Y   :\ 9C5E= B9 E2 9B    9b.
-PHA             :\ 9C61= 48          H
-RTS             :\ 9C62= 60          `
+LDA #L9C63 DIV 256 :\ 9C5B= A9 9C       ).
+PHA                :\ 9C5D= 48          H
+LDA L9C63-&81,Y    :\ 9C5E= B9 E2 9B    9b.
+PHA                :\ 9C61= 48          H
+RTS                :\ 9C62= 60          `
  
 .L9C63
-EQUB &6E
-EQUW &B472      :\ 9C63= 6E 72 B4    nr4
-LDY &B4,X       :\ 9C66= B4 B4       44
-CPY &C4         :\ 9C68= C4 C4       DD
-ROR A           :\ 9C6A= 6A          j
+EQUB (L9C6F-1) AND 255 :\ &81 PEEK
+EQUB (L9C73-1) AND 255 :\ &82 POKE
+EQUB (L9CB5-1) AND 255 :\ &83 
+EQUB (L9CB5-1) AND 255 :\ &84 
+EQUB (L9CB5-1) AND 255 :\ &85 HALT
+EQUB (L9CC5-1) AND 255 :\ &87 CONT
+EQUB (L9CC5-1) AND 255 :\ &88 PING
+EQUB (L9C6B-1) AND 255 :\ &89 
 
+.L9C6B
 LDA #&03        :\ 9C6B= A9 03       ).
 BNE L9CB7       :\ 9C6D= D0 48       PH
+.L9C6F
 LDA #&03        :\ 9C6F= A9 03       ).
 BNE L9C75       :\ 9C71= D0 02       P.
+.L9C73
 LDA #&02        :\ 9C73= A9 02       ).
 .L9C75
 STA &0D5C       :\ 9C75= 8D 5C 0D    .\.
@@ -883,6 +925,7 @@ BCS L9CC5       :\ 9CAE= B0 15       0.
 .L9CB0
 LDA #&00        :\ 9CB0= A9 00       ).
 STA &0D4A       :\ 9CB2= 8D 4A 0D    .J.
+.L9CB5
 LDA #&02        :\ 9CB5= A9 02       ).
 .L9CB7
 STA &0D5C       :\ 9CB7= 8D 5C 0D    .\.
@@ -938,8 +981,8 @@ JMP L9EAE       :\ 9D05= 4C AE 9E    L..
 .L9D08
 LDA #&3F        :\ 9D08= A9 3F       )?
 STA &FEA1       :\ 9D0A= 8D A1 FE    .!~
-LDA #&14        :\ 9D0D= A9 14       ).
-LDY #&9D        :\ 9D0F= A0 9D        .
+LDA #L9D14 AND 255 :\ 9D0D= A9 14       ).
+LDY #L9D14 DIV 256 :\ 9D0F= A0 9D        .
 JMP &0D0E       :\ 9D11= 4C 0E 0D    L..
  
 .L9D14
@@ -956,7 +999,7 @@ BEQ L9D2B       :\ 9D26= F0 03       p.
 JMP L9E50       :\ 9D28= 4C 50 9E    LP.
  
 .L9D2B
-LDA #&30        :\ 9D2B= A9 30       )0
+LDA #L9D30 AND 255 :\ 9D2B= A9 30       )0
 JMP &0D11       :\ 9D2D= 4C 11 0D    L..
  
 .L9D30
@@ -966,7 +1009,7 @@ BEQ L9CF2       :\ 9D35= F0 BB       p;
 LDA &FEA2       :\ 9D37= AD A2 FE    -"~
 CMP &FE18       :\ 9D3A= CD 18 FE    M.~
 BNE L9D58       :\ 9D3D= D0 19       P.
-LDA #&44        :\ 9D3F= A9 44       )D
+LDA #L9D44 AND 255 :\ 9D3F= A9 44       )D
 JMP &0D11       :\ 9D41= 4C 11 0D    L..
  
 .L9D44
@@ -974,7 +1017,7 @@ BIT &FEA1       :\ 9D44= 2C A1 FE    ,!~
 BPL L9D58       :\ 9D47= 10 0F       ..
 LDA &FEA2       :\ 9D49= AD A2 FE    -"~
 BNE L9D58       :\ 9D4C= D0 0A       P.
-LDA #&5B        :\ 9D4E= A9 5B       )[
+LDA #L9D5B AND 255 :\ 9D4E= A9 5B       )[
 BIT &FEA0       :\ 9D50= 2C A0 FE    , ~
 BMI L9D5B       :\ 9D53= 30 06       0.
 JMP &0D11       :\ 9D55= 4C 11 0D    L..
@@ -998,8 +1041,8 @@ LDA #&A7        :\ 9D77= A9 A7       )'
 STA &FEA1       :\ 9D79= 8D A1 FE    .!~
 LDA #&44        :\ 9D7C= A9 44       )D
 STA &FEA0       :\ 9D7E= 8D A0 FE    . ~
-LDA #&50        :\ 9D81= A9 50       )P
-LDY #&9E        :\ 9D83= A0 9E        .
+LDA #L9E50 AND 255 :\ 9D81= A9 50       )P
+LDY #L9E50 DIV 256 :\ 9D83= A0 9E        .
 STA &0D4B       :\ 9D85= 8D 4B 0D    .K.
 STY &0D4C       :\ 9D88= 8C 4C 0D    .L.
 LDA &0D20       :\ 9D8B= AD 20 0D    - .
@@ -1008,8 +1051,8 @@ BVC L9DCD       :\ 9D91= 50 3A       P:
 STA &FEA2       :\ 9D93= 8D A2 FE    ."~
 LDA &0D21       :\ 9D96= AD 21 0D    -!.
 STA &FEA2       :\ 9D99= 8D A2 FE    ."~
-LDA #&A3        :\ 9D9C= A9 A3       )#
-LDY #&9D        :\ 9D9E= A0 9D        .
+LDA #L9DA3 AND 255 :\ 9D9C= A9 A3       )#
+LDY #L9DA3 DIV 256 :\ 9D9E= A0 9D        .
 JMP &0D0E       :\ 9DA0= 4C 0E 0D    L..
  
 .L9DA3
@@ -1023,13 +1066,13 @@ STA &FEA2       :\ 9DB0= 8D A2 FE    ."~
 LDA #&02        :\ 9DB3= A9 02       ).
 BIT &0D4A       :\ 9DB5= 2C 4A 0D    ,J.
 BNE L9DC1       :\ 9DB8= D0 07       P.
-LDA #&C8        :\ 9DBA= A9 C8       )H
-LDY #&9D        :\ 9DBC= A0 9D        .
+LDA #L9DC8 AND 255 :\ 9DBA= A9 C8       )H
+LDY #L9DC8 DIV 256 :\ 9DBC= A0 9D        .
 JMP &0D0E       :\ 9DBE= 4C 0E 0D    L..
  
 .L9DC1
-LDA #&0F        :\ 9DC1= A9 0F       ).
-LDY #&9E        :\ 9DC3= A0 9E        .
+LDA #L9E0F AND 255 :\ 9DC1= A9 0F       ).
+LDY #L9E0F DIV 256 :\ 9DC3= A0 9E        .
 JMP &0D0E       :\ 9DC5= 4C 0E 0D    L..
  
 .L9DC8
@@ -1063,15 +1106,16 @@ LDA #&3F        :\ 9DF5= A9 3F       )?
 STA &FEA1       :\ 9DF7= 8D A1 FE    .!~
 LDA &0D4A       :\ 9DFA= AD 4A 0D    -J.
 BPL L9E06       :\ 9DFD= 10 07       ..
-LDA #&DB        :\ 9DFF= A9 DB       )[
-LDY #&99        :\ 9E01= A0 99        .
+LDA #L99DB AND 255 :\ 9DFF= A9 DB       )[
+LDY #L99DB DIV 256 :\ 9E01= A0 99        .
 JMP &0D0E       :\ 9E03= 4C 0E 0D    L..
  
 .L9E06
 LDA &0D4B       :\ 9E06= AD 4B 0D    -K.
 LDY &0D4C       :\ 9E09= AC 4C 0D    ,L.
 JMP &0D0E       :\ 9E0C= 4C 0E 0D    L..
- 
+
+.L9E0F
 BIT &FEA0       :\ 9E0F= 2C A0 FE    , ~
 .L9E12
 BVC L9E48       :\ 9E12= 50 34       P4
@@ -1110,8 +1154,8 @@ JMP L99DB       :\ 9E4D= 4C DB 99    L[.
 .L9E50
 LDA #&82        :\ 9E50= A9 82       ).
 STA &FEA0       :\ 9E52= 8D A0 FE    . ~
-LDA #&5C        :\ 9E55= A9 5C       )\
-LDY #&9E        :\ 9E57= A0 9E        .
+LDA #L9E5C AND 255 :\ 9E55= A9 5C       )\
+LDY #L9E5C DIV 256 :\ 9E57= A0 9E        .
 JMP &0D0E       :\ 9E59= 4C 0E 0D    L..
  
 .L9E5C
@@ -1121,7 +1165,7 @@ BEQ L9EAC       :\ 9E61= F0 49       pI
 LDA &FEA2       :\ 9E63= AD A2 FE    -"~
 CMP &FE18       :\ 9E66= CD 18 FE    M.~
 BNE L9EAC       :\ 9E69= D0 41       PA
-LDA #&70        :\ 9E6B= A9 70       )p
+LDA #L9E70 AND 255 :\ 9E6B= A9 70       )p
 JMP &0D11       :\ 9E6D= 4C 11 0D    L..
  
 .L9E70
@@ -1129,7 +1173,7 @@ BIT &FEA1       :\ 9E70= 2C A1 FE    ,!~
 BPL L9EAC       :\ 9E73= 10 37       .7
 LDA &FEA2       :\ 9E75= AD A2 FE    -"~
 BNE L9EAC       :\ 9E78= D0 32       P2
-LDA #&84        :\ 9E7A= A9 84       ).
+LDA #L9E84 AND 255 :\ 9E7A= A9 84       ).
 BIT &FEA0       :\ 9E7C= 2C A0 FE    , ~
 BMI L9E84       :\ 9E7F= 30 03       0.
 JMP &0D11       :\ 9E81= 4C 11 0D    L..
@@ -1169,6 +1213,7 @@ ASL A           :\ 9EBD= 0A          .
 ASL A           :\ 9EBE= 0A          .
 ASL &06         :\ 9EBF= 06 06       ..
 ASL A           :\ 9EC1= 0A          .
+.L9EC2
 STA (&00,X)     :\ 9EC2= 81 00       ..
 BRK             :\ 9EC4= 00          .
 BRK             :\ 9EC5= 00          .
@@ -1264,7 +1309,13 @@ BIT &0D66:BPL L9F7A    :\ I'm not using NMIs, put stand ALDC down and return
 .L9F5C
 LDA &0D0C:CMP #L96BF AND 255:BNE L9F5C
 LDA &0D0D:CMP #L96BF DIV 256:BNE L9F5C :\ Wait until NMI idle code in place
-BIT &FE18:BIT &FE18    :\ Disable ALDC
+IF VERSION<&0365
+ BIT &FE18             :\ Disable ALDC
+ELSE
+ LDA #&40
+ STA &0D1C
+ENDIF
+BIT &FE18              :\ Disable ALDC
 LDA #&00:STA &0D62     :\ No tranmission in progress
 STA &0D66              :\ I'm not using NMIs
 LDY #&05               :\ Return with Y=net fs number

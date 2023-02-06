@@ -1,3 +1,12 @@
+; Almost builds
+; NFS 3.40
+; NFS 3.50
+;
+; Correctly builds:
+; NFS 3.60
+; NFS 3.65
+;
+
 ; Target-specific equates
 ; -----------------------
 IF   TARGET=0
@@ -36,26 +45,34 @@ OSGBPB=&FFD1:OSFIND=&FFCE
  
 ORG &8000
 include "NFS.asm"
+include "TUBE.asm"
 include "ECONET.asm"
 
 .L9F9D
 .DFS	RTS
 
-;IF ROM8K
-.LBFF0
-PHA
-LSR A
-LSR A
-LSR A
-LSR A
-JSR LBFF8
-PLA
-.LBFF8
-AND #15:CMP #10:BCC LBFFC:ADC #6
-.LBFFC
-ADC #48:JSR OSASCI
-SEC:RTS
-;ENDIF
+IF VERSION<&0365
+ .LBFF0
+ PHA:LSR A:LSR A:LSR A
+ LSR A:JSR LBFF8:PLA
+ .LBFF8
+ AND #15:CMP #10:BCC LBFFC:ADC #6
+ .LBFFC
+ ADC #48:JSR OSASCI
+ SEC:RTS
+ENDIF
+
+IF TARGET>=3
+ .MTYPE
+ EQUB &05,&0A,&0C ; M128,MET,CMP
+ .MSTATION
+ LDA #0:LDX #1:JSR OSBYTE ; But BBCMOS will return X=1
+ LDA MTYPE-3,X:STA &0D71  ; My MTYPE
+ LDX #0
+ .RDCMOS
+ LDA #161:JSR OSBYTE      ; Get Station number
+ TYA:RTS                  ; But if BBCMOS, no CMOS calls
+ENDIF
 
 .CODEEND
 
