@@ -1,10 +1,19 @@
+; NFS NETWORK FILING SYSTEM
+; =========================
+; Filing system and high level routines
+;
+
 .L8000   :JMP L80E1           :\ Language entry, used for Remote Procedure Call dispatch
 .L8003   :JMP L80F7           :\ Service entry
 .L8006   :EQUB &82            :\ ROM type
 .L8007   :EQUB ROMCopy-L8000  :\ Copyright offset
-IF ROM8K=0
+IF DNFS
  .L8008  :EQUB &83            :\ ROM Version, 3.xx with b7 set
+ IF PATCH
+          EQUS "    "         :\ ROM Title
+ ELSE
           EQUS "DFS,"         :\ ROM Title
+ ENDIF
 ELSE
  .L8008  :EQUB &03            :\ ROM Version, 3.xx
 ENDIF
@@ -169,7 +178,6 @@ EQUB (L8E6D-1) DIV 256 :\ OSBYTE &33 (51) - Poll network receive
 EQUB (L8E7D-1) DIV 256 :\ OSBYTE &34 (52) - Delete receive control block
 EQUB (L81BC-1) DIV 256 :\ OSBYTE &35 (53) - Disconnect remote connection
 
-
 \ SERVICE 7 - OSBYTE HANDLER
 \ ==========================
 \ Entered with Carry Clear
@@ -210,7 +218,6 @@ JSR OSRDCH:STA &0F05,Y        :\ Get character and append to string in NetFS_Op 
 INY:INX:CMP #&0D:BNE L80AD    :\ Step to next, loop until <cr> entered
 JSR OSNEWL:BNE L80A0          :\ Print newline and branch to check for another colon
 
-
 \ *I. and unmatched *command - pass to file server via FSOp_CommandLine
 \ =====================================================================
 .L80C1
@@ -221,14 +228,12 @@ LDX &0F03:BEQ L80F6           :\ Ok, all done, return
 LDA &0F05:LDY #&17            :\ Get CommandLine command
 BNE L80E7                     :\ Jump to dispatch to handler routine
 
-
 \ FSC
 \ ===
 .L80D4
 JSR L8649                     :\ Store XY in &F2/3, &BB/C and &BE/F, store A in &BD
 CMP #&08:BCS L80F6            :\ If call>7, jump to exit
 TAX:TYA:LDY #&13:BNE L80E7    :\ Index into table and jump to dispatch to handler
-
 
 \ Remote Procedure Call handler
 \ =============================
@@ -248,29 +253,46 @@ LDX &BB                       :\ Get X from &BB
 .L80F6
 RTS                           :\ Jump to routine
 
-
 \ SERVICE HANDLER
 \ ===============
 .L80F7
-IF ROM8K=0
- BIT &028F:PHP:BPL L8100      :\ If NFS priority, jump to NFS service handler
- JSR L9F9D                    :\ Call DFS service handler
+IF DNFS
+ IF PATCH
+  NOP:NOP:NOP:NOP:NOP
+  NOP:NOP:NOP:NOP
+ ELSE
+  BIT &028F:PHP:BPL L8100	:\ If NFS priority, jump to NFS service handler
+  JSR HIGHROM			:\ Call DFS service handler
+ ENDIF
 ENDIF
 
 \ NFS Service Handler
 \ -------------------
 .L8100
-PHA:CMP #&01:BNE L811A        :\ Not Service 1, skip hardware check
-LDA &FEA0:AND #&ED:BNE L8113  :\ Econet hardware absent, jump to disable
-LDA &FEA1:AND #&DB:BEQ L811A  :\ Econet hardware present, jump to continue
-.L8113
-ROL &0DF0,X:SEC:ROR &0DF0,X   :\ Disable NFS in ROM workspace byte
-.L811A
-LDA &0DF0,X:ASL A             :\ Get NFS enable/disable flag
-PLA:BMI L8123                 :\ Jump ahead with high numbered service calls, A>&7F
-BCS L8191                     :\ Exit if NFS disabled
+IF (VERSION AND &FFF0)=&340
+  PHA:LDA &0DF0,X:PHA		:\ Get workspace byte
+  BNE L811E			:\ Already set, skip hardware test
+  INC &0DF0,X			:\ Set to &01
+  LDA &FE18:BEQ L8114		:\ Station links=0, disable NFS
+  CMP &FE18:BEQ L811E		:\ Station links valid, continue
+  .L8114
+  SEC:ROR &0DF0,X		:\ Disable NFS in ROM workspace byte
+  .L8118
+  PLA:ASL A			:\ Get NFS enable/disable flag
+ELSE
+  PHA:CMP #&01:BNE L811A	:\ Not Service 1, skip hardware check
+  LDA &FEA0:AND #&ED:BNE L8113	:\ Econet hardware absent, jump to disable
+  LDA &FEA1:AND #&DB:BEQ L811A	:\ Econet hardware present, jump to continue
+  .L8113
+  ROL &0DF0,X:SEC:ROR &0DF0,X	:\ Disable NFS in ROM workspace byte
+  .L811A
+  LDA &0DF0,X:ASL A		:\ Get NFS enable/disable flag
+ENDIF
+.L811E
+PLA:BMI L8123			:\ Jump ahead with high numbered service calls, A>&7F
+BCS L8191			:\ Exit if NFS disabled
 .L8123
-CMP #&FE:BCC L8183            :\ Not Tube service call, jump ahead to NFS service handler
+CMP #&FE:BCC L8183		:\ Not Tube service call, jump ahead to NFS service handler
 
 \ Tube Host service handler
 \ =========================
@@ -322,9 +344,14 @@ LDX &A9                  :\ Get any result from &A9
 PLA:STA &A8:PLA:STA &A9  :\ Restore workspace
 TXA:LDX &F4              :\ Pass result to A, restore X
 .L81AF
-IF ROM8K=0
- PLP:BMI L81E9           :\ DFS already called earlier, jump to exit
- JMP L9F9D               :\ Continue into DFS service handler
+IF DNFS
+ IF PATCH
+  RTS:NOP:NOP
+  NOP:NOP:NOP
+ ELSE
+  PLP:BMI L81E9		:\ DFS already called earlier, jump to exit
+  JMP HIGHROM		:\ Continue into DFS service handler
+ ENDIF
 ELSE
  RTS
 ENDIF
@@ -360,7 +387,6 @@ LDX #L800D-L8008         :\ Point to 'NET' command
 JSR L8362:BNE L8215      :\ Not *NET, jump to exit
                          :\ Fall through to select NFS
 
-
 \ SERVICE 12,5 - Select filing system
 \ ===================================
 .L81F1
@@ -377,7 +403,6 @@ CPY #&14        :\ 8202= C0 14       @.
 BNE L81FC       :\ 8204= D0 F6       Pv
 BEQ L8264       :\ 8206= F0 5C       p\
 
-
 \ SERVICE 9 - HELP
 \ ================
 .L8208
@@ -387,10 +412,10 @@ EQUB (VERSION DIV 256)+48	:\ Version string
 EQUB "."
 EQUB ((VERSION AND &F0)DIV 16)+48
 EQUB (VERSION AND &0F)+48
-IF TARGET=0
- EQUS "E"			:\ Electron
+IF   TARGET=0
+  EQUS "E"			:\ Electron
 ELIF TARGET>=3
- EQUS "M"			:\ Master
+  EQUS "M"			:\ Master
 ENDIF
 EQUB 13
 .L8215
@@ -454,30 +479,35 @@ JMP L8C1B               :\ Jump to do FSOp_Command
 EQUS "I .BOOT":EQUB 13
 
 .L829A
-EQUW &FF1B      :\ 829A= 1B FF       .. - FILEV
-EQUW &FF1E      :\ 829C= 1E FF       .. - ARGSV
-EQUW &FF21      :\ 829E= 21 FF       !. - BGETV
-EQUW &FF24      :\ 82A0= 24 FF       $. - BPUTV
-EQUW &FF27      :\ 82A2= 27 FF       '. - GBPBV
-EQUW &FF2A      :\ 82A4= 2A FF       *. - FINDV
-EQUW &FF2D      :\ 82A6= 2D FF       -. - FSCV
+EQUW &FF1B		:\ FILEV
+EQUW &FF1E		:\ ARGSV
+EQUW &FF21		:\ BGETV
+EQUW &FF24		:\ BPUTV
+EQUW &FF27		:\ GBPBV
+EQUW &FF2A		:\ FINDV
+EQUW &FF2D		:\ FSCV
 
-EQUW L870C:EQUB "J" :\ FILE
-EQUW L8968:EQUB "D" :\ ARGS
-EQUW L8563:EQUB "W" :\ BGET
-EQUW L8413:EQUB "B" :\ BPUT
-EQUW L8A72:EQUB "A" :\ GBPB
-EQUW L89D8:EQUB "R" :\ FIND
-EQUW L80D4          :\ FSC
+EQUW L870C:EQUB "J"	:\ XFILEV
+EQUW L8968:EQUB "D"	:\ XARGSV
+EQUW L8563:EQUB "W"	:\ XBGETV
+EQUW L8413:EQUB "B"	:\ XBPUTV
+EQUW L8A72:EQUB "A"	:\ XGBPBV
+EQUW L89D8:EQUB "R"	:\ XFINDV
+EQUW L80D4         	:\ XFSCV
 
+\ SERVICE CALL 1 - SHARED WORKSPACE
+\ =================================
 .L82BC
-CPY #&10        :\ 82BC= C0 10       @.
-BCS L82C2       :\ 82BE= B0 02       0.
-LDY #&10        :\ 82C0= A0 10        .
+CPY #&10:BCS L82C2
+LDY #&10
 .L82C2
-RTS             :\ 82C2= 60          `
- 
-EQUW L9080      :\ 82C3= 80 90       ..   9080 - NETV
+RTS
+
+.L82C3
+IF (L82C3-L829A)<>&29
+  ERROR "NETV vector not &29 bytes from anchor"
+ENDIF
+EQUW L9080		:\ XNETV
  
 \ SERVICE CALL 2 - PRIVATE WORKSPACE
 \ ==================================
@@ -551,7 +581,6 @@ LDY &9F         :\ 834D= A4 9F       $.
 INY             :\ 834F= C8          H
 RTS             :\ 8350= 60          `
 
-
 \ FSC 6 - New filing system about to be selected
 \ ==============================================
 .L8351 
@@ -560,7 +589,6 @@ LDY #&1D
 LDA &0DEB,Y:STA (&9C),Y     :\ Copy to private workspace
 DEY:CPY #&14:BNE L8353
 LDA #&77:JMP OSBYTE         :\ Close Spool/Exec files
-
 
 \ Compare string at &F2 command table at &8008
 \ --------------------------------------------
@@ -592,37 +620,31 @@ JSR L8395       :\ Copy Tx block to &C0-&CC
 STA &C1         :\ Change port to &90
 LDA #&03:STA &C4:\ RxAddr=&FFFF0F03
 DEC &C0:RTS     :\ Change Ctrl to &7F
- 
+
+\ Copy private control block
+\ --------------------------
 .L8395
-PHA             :\ 8395= 48          H
-LDY #&0B        :\ 8396= A0 0B        .
+PHA			:\ Save A
+LDY #&0B		:\ 12 bytes to copy
 .L8398
-LDA L83AD,Y     :\ 8398= B9 AD 83    9-.
-STA &00C0,Y     :\ 839B= 99 C0 00    .@.
-CPY #&02        :\ 839E= C0 02       @.
-BPL L83A8       :\ 83A0= 10 06       ..
-LDA &0E00,Y     :\ 83A2= B9 00 0E    9..
-STA &00C2,Y     :\ 83A5= 99 C2 00    .B.
+LDA L83AD,Y:STA &00C0,Y	:\ Copy control block
+CPY #&02:BPL L83A8
+LDA &0E00,Y:STA &00C2,Y	:\ Copy file server station number
 .L83A8
-DEY             :\ 83A8= 88          .
-BPL L8398       :\ 83A9= 10 ED       .m
-PLA             :\ 83AB= 68          h
-RTS             :\ 83AC= 60          `
- 
+DEY:BPL L8398		:\ Loop for all 12 bytes
+PLA:RTS
+
+\ Private control block
+\ ---------------------
 .L83AD
-EQUW &9980      :\ 83AD= 80 99       ..
- 
-BRK             :\ 83AF= 00          .
-BRK             :\ 83B0= 00          .
-BRK             :\ 83B1= 00          .
-EQUB &0F        :\ 83B2= 0F          .
-.L83B3
-EQUB &FF        :\ 83B3= FF          .
-EQUB &FF        :\ 83B4= FF          .
-EQUB &FF        :\ 83B5= FF          .
-EQUB &0F        :\ 83B6= 0F          .
-EQUB &FF        :\ 83B7= FF          .
-EQUB &FF        :\ 83B8= FF          .
+EQUB &80		:\ Control byte
+EQUB &99		:\ Port
+EQUW &0000		:\ Station
+EQUW &0F00		:\ Data start=&0F00
+.L83B3:.SETV
+EQUW &FFFF
+EQUW &0FFF:EQUW &FFFF	:\ Data end  =&0FFF
+
 .L83B9
 PHA             :\ 83B9= 48          H
 SEC             :\ 83BA= 38          8
@@ -636,7 +658,6 @@ CLV:BVC L83CE
 .L83C0
 LDA #&77:JSR OSBYTE      :\ Close SPOOL and EXEC files
 LDY #&17                 :\ Continue to do FSOp &17 - Logoff
-
 
 \ Send FSOp and check for returned error
 \ ======================================
@@ -687,7 +708,9 @@ BCC L83FB       :\ 8411= 90 E8       .h
 .L8413
 CLC             :\ 8413= 18          .
 .L8414
-JSR L8657       :\ Set a flag
+IF (VERSION AND &FFF0)<>&340
+  JSR L8657     :\ Set a flag
+ENDIF
 PHA             :\ 8417= 48          H
 STA &0FDF       :\ 8418= 8D DF 0F    ._.
 TXA             :\ 841B= 8A          .
@@ -765,14 +788,15 @@ PLA             :\ 849F= 68          h
 .L84A0
 RTS             :\ 84A0= 60          `
  
-.L84A1
-LDA &FF         :\ 84A1= A5 FF       %.
-AND &97         :\ 84A3= 25 97       %.
-BPL L84A0       :\ 84A5= 10 F9       .y
-LDA #&7E        :\ 84A7= A9 7E       )~
-JSR OSBYTE      :\ 84A9= 20 F4 FF     t.
-JMP L8512       :\ 84AC= 4C 12 85    L..
-
+IF (VERSION AND &FFF0)<>&340
+  .L84A1
+  LDA &FF         :\ 84A1= A5 FF       %.
+  AND &97         :\ 84A3= 25 97       %.
+  BPL L84A0       :\ 84A5= 10 F9       .y
+  LDA #&7E        :\ 84A7= A9 7E       )~
+  JSR OSBYTE      :\ 84A9= 20 F4 FF     t.
+  JMP L8512       :\ 84AC= 4C 12 85    L..
+ENDIF
 
 \ Remote OS Call 1 - Initialise for Remote
 \ ========================================
@@ -849,11 +873,16 @@ BNE L851D       :\ 8527= D0 F4       Pt
 .L8530
 LDA #&2A:PHA               :\ Push timeout=42
 LDA &0D64:PHA              :\ Save current Rx flag
-LDX &9B:BNE L8540          :\ &9A/B<>&00xx, skip past
+IF (VERSION AND &FFF0)<>&340
+  LDX &9B:BNE L8540        :\ &9A/B<>&00xx, skip past
+ENDIF
 ORA #&80:STA &0D64         :\ Flag that Rx is at &00C0
 .L8540
 LDA #&00:PHA:PHA:TAY:TSX   :\ Push counter=&0000
 .L8546
+IF (VERSION AND &FFF0)=&340
+  JSR L854D
+ENDIF
 LDA (&9A),Y:BMI L8559      :\ Get RxResult, b7=received
 DEC &0101,X:BNE L8546      :\ Decrement timeout counter
 DEC &0102,X:BNE L8546
@@ -861,6 +890,19 @@ DEC &0104,X:BNE L8546      :\ Decrement timeout
 .L8559
 PLA:PLA:PLA:STA &0D64      :\ Drop timer, restore Rx flag
 PLA:BEQ L850C:RTS          :\ If timeout=0, jump to 'No reply' error
+
+IF (VERSION AND &FFF0)=&340
+  .L84A1
+  .L854D
+  BIT &FF       :\ 854D= 24 FF       $.
+  BPL L857F     :\ 854F= 10 27       .'
+  LDA #&7E      :\ 8551= A9 7E       )~
+  JSR OSBYTE    :\ 8553= 20 F4 FF     t.
+  LSR A         :\ 8556= 4A          J
+  STA (&9A),Y   :\ 8557= 91 9A       ..
+  ASL A         :\ 8559= 0A          .
+  BNE L8512     :\ 855A= D0 A1       P!
+ENDIF
 
 .L8563 
 SEC             :\ 8563= 38          8
@@ -890,6 +932,18 @@ RTS             :\ 857F= 60          `
 .L85B1:EQUB &11:EQUS "Escape":EQUB 0
 .L85B9:EQUB &CB:EQUS "Bad Option":EQUB 0
 .L85C5:EQUB &A5:EQUS "No reply":EQUB 0
+
+IF (VERSION AND &FFF0)=&340
+EQUS "...."
+STX &0E10       :\ 85CC= 8E 10 0E    ...
+STY &0E11       :\ 85CF= 8C 11 0E    ...
+STA &BD         :\ 85D2= 85 BD       .=
+STX &BB         :\ 85D4= 86 BB       .;
+STY &BC         :\ 85D6= 84 BC       .<
+STX &BE         :\ 85D8= 86 BE       .>
+STY &BF         :\ 85DA= 84 BF       .?
+RTS             :\ 85DC= 60          `
+ENDIF
 
 .L85CF
 EQUW &0EA0      :\ 85CD= A0 0E
@@ -1088,7 +1142,6 @@ BNE L86C1       :\ 86C8= D0 F7       Pw
 .L86CA
 RTS             :\ 86CA= 60          `
 
-
 \ FSC 7 - Request file handles
 \ ============================
 .L86CB 
@@ -1133,7 +1186,6 @@ STA &BE         :\ 8705= 85 BE       .>
 LDA #&0E        :\ 8707= A9 0E       ).
 STA &BF         :\ 8709= 85 BF       .?
 RTS             :\ 870B= 60          `
-
 
 \ OSFILE - Perform whole file operation
 \ =====================================
@@ -1215,7 +1267,6 @@ RTS             :\ 878F= 60          `
 BEQ L8795       :\ 8790= F0 03       p.
 JMP L88D1       :\ 8792= 4C D1 88    LQ.
  
-
 \ Display file information if *OPT1 set
 \ -------------------------------------
 .L8795
@@ -1892,7 +1943,6 @@ JSR &0406       :\ 8C15= 20 06 04     ..
 BCC L8C13       :\ 8C18= 90 F9       .y
 RTS             :\ 8C1A= 60          `
 
-
 \ FSC 3 - *command
 \ ================ 
 .L8C1B
@@ -1936,7 +1986,6 @@ EQUS "EX"         :EQUB (L8C61-1)DIV256:EQUB (L8C61-1)AND255
 EQUS "BYE",13     :EQUB (L83C0-1)DIV256:EQUB (L83C0-1)AND255
 EQUS ""           :EQUB (L80C1-1)DIV256:EQUB (L80C1-1)AND255
 
-
 \ *EX - examine directory
 \ =======================
 \ On entry, (&BE),Y=>parameters, Y=>character after 'X'
@@ -1950,7 +1999,6 @@ EQUS ""           :EQUB (L80C1-1)DIV256:EQUB (L80C1-1)AND255
 \
 .L8C61 
 LDX #&01:LDA #&03:BNE L8C72
-
 
 \ FSC 5 - *Cat
 \ ============
@@ -1994,7 +2042,7 @@ LDY #&10             :\
 JSR L8D49            :\ 
 JSR L865C:EQUS "    Option "
 LDA &0E05:TAX        :\ Get option, save in X
-JSR LBFF0            :\ Print option in hex - NB! Calls code in DFS half of ROM
+JSR PRHEX            :\ Print option in hex - NB! Calls code in DFS half of ROM
 JSR L865C:EQUS " ("
 LDY L8D54,X           :\ Index into option strings
 .L8CE2
@@ -2076,7 +2124,7 @@ EQUS "Exec"
 .L8D70
 LDX #&04                    :\ Four bytes to print
 .L8D72
-LDA (&BB),Y:JSR LBFF0       :\ Print hex - NB! calls DFS half of ROM
+LDA (&BB),Y:JSR PRHEX       :\ Print hex - NB! calls DFS half of ROM
 DEY:DEX:BNE L8D72           :\ Loop for four bytes
 .L8D7B
 LDA #&20:BNE L8DD9       :\ Exit by printing a space
@@ -2152,15 +2200,19 @@ TXA             :\ 8DD8= 8A          .
 .L8DD9
 JMP OSASCI      :\ 8DD9= 4C E3 FF    Lc.
 
-IF ROM8K
- .LBFF0
- PHA
- LSR A:LSR A:LSR A:LSR A
- JSR LBFF8
- PLA:AND #15
- .LBFF8
- ORA #&30:CMP #&3A:BCC L8DD9
- ADC #&06:BNE L8DD9
+IF DNFS
+IF PATCH=0
+  PRHEX=&BFF0	:\ Use routine in top of DFS code
+ENDIF
+ELSE
+  .PRHEX
+  PHA
+  LSR A:LSR A:LSR A:LSR A
+  JSR LBFF8
+  PLA:AND #15
+  .LBFF8
+  ORA #&30:CMP #&3A:BCC L8DD9
+  ADC #&06:BNE L8DD9
 ENDIF
 
 .L8DDC 
@@ -2248,14 +2300,12 @@ TYA             :\ 8E65= 98          .
 .L8E66
 RTS             :\ 8E66= 60          `
 
-
 \ OSBYTE &32 (50) - Poll network transmit
 \ =======================================
 .L8E67 
 LDY #&6F        :\ 8E67= A0 6F        o
 LDA (&9C),Y     :\ 8E69= B1 9C       1.
 BCC L8E7A       :\ 8E6B= 90 0D       ..
-
 
 \ OSBYTE &33 (51) - Poll network receive
 \ ======================================
@@ -2271,7 +2321,6 @@ LDA #&00        :\ 8E78= A9 00       ).
 STA &F0         :\ 8E7A= 85 F0       .p
 RTS             :\ 8E7C= 60          `
 
-
 \ OSBYTE &34 (52) - Delete receive control block
 \ ==============================================
 .L8E7D 
@@ -2280,7 +2329,6 @@ BCS L8E78       :\ 8E80= B0 F6       0v
 LDA #&3F        :\ 8E82= A9 3F       )?
 STA (&9E),Y     :\ 8E84= 91 9E       ..
 RTS             :\ 8E86= 60          `
-
 
 \ SERVICE 8 - OSWORD HANDLER
 \ ========================== 
@@ -2320,7 +2368,6 @@ EQUB (L8EDC-1) DIV 256          :\ OSWORD &12 - NetParams
 EQUB (L8F01-1) DIV 256          :\ OSWORD &13 - NetInfo
 EQUB (L8FF0-1) DIV 256          :\ OSWORD &14 - FSOp
 
-
 \ OSWORD &10 - NetTx - Network Transmit
 \ =====================================
 .L8EC2
@@ -2330,7 +2377,6 @@ LDA &9D:STA &AC:STA &A1       :\ &AB/C=>workspace
 LDA #&6F:STA &AB:STA &A0      :\ &A0/1=>workspace
 LDX #&0F:JSR L8F1C            :\ Copy control block to ws+&6F
 JMP L9630                     :\ Jump to low level code
-
 
 \ OSWORD &12 - NetParams
 \ ======================
@@ -2361,7 +2407,6 @@ RTS             :\ 8EFE= 60          `
 .L8EFF
 EQUB &FF        :\ 8EFF= FF          .
 EQUB &01        :\ 8F00= 01
-
 
 \ OSWORD &13 - NetInfo - Read/Write network info
 \ ==============================================
@@ -2448,7 +2493,6 @@ DEY             :\ 8F78= 88          .
 BNE L8F70       :\ 8F79= D0 F5       Pu
 RTS             :\ 8F7B= 60          `
 
-
 \ OSWORD &11 - NetRx - Create/Read network receive block
 \ ======================================================
 .L8F7C
@@ -2525,15 +2569,14 @@ ADC #&00        :\ 8FEB= 69 00       i.
 STA (&9E),Y     :\ 8FED= 91 9E       ..
 RTS             :\ 8FEF= 60          `
 
-
 \ OSWORD &14 - NetFS_Op - Send command to file server (and other stuff)
 \ =====================================================================
 .L8FF0
-CMP #&01:BCS L903E            :\ Jump if not NetFS_Op
-LDY #&23                      :\ Set up NetTx control block
+CMP #&01:BCS L903E		:\ Jump if not NetFS_Op
+LDY #&23			:\ Set up NetTx control block
 .L8FF6
-LDA L8395,Y:BNE L8FFE
-LDA &0DE6,Y                   :\ Replace zero bytes with len, fs.net, fs.stn
+LDA L83AD-&18,Y:BNE L8FFE	:\ Copy control block
+LDA &0DE6,Y			:\ Replace zero bytes with len, fs.net, fs.stn
 .L8FFE
 STA (&9E),Y:DEY
 CPY #&17:BNE L8FF6

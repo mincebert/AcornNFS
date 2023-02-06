@@ -1,7 +1,12 @@
+\ LOW LEVEL ECONET CONTROL
+\ ======================== 
+
+IF (VERSION AND &FF0)=&0340
+ SKIPTO &9660
+ENDIF
 
 IF VERSION=&0365
  SKIPTO &9650
-; EQUS STRING$(&9650-P%,CHR$(255))
 ENDIF
 
 \ ======================== 
