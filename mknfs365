@@ -1,0 +1,3 @@
+. setbeebasm
+
+$BEEBASM -D TARGET=0 -D VERSION=0x365 -D DNFS=0 -i build.asm -o NFS365.rom -v > NFS.lst

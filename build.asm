@@ -34,26 +34,29 @@ IF   TARGET=0
   CPU 0			; 6502
   ADLC   =&FC28		; Network controller
   STNNUM =&FC2C		; Station number links
-  STNNMI =&FC2C		; Used in NMI routines
-  VIA    =&FC60		; 6522 VIA
+  INTOFF =&FC2C   ; disable network NMIs
+  INTON  =&FC2E   ; enable network NMIs
+  SYSVIA =&FC60   ; 6522 System VIA
   ROMSEL =&FE05		; ROM select register
-  TUBEIO =&FCE5		; Tube data port
+  TUBEIO =&FCE0		; Tube data port
 ELIF TARGET=1 OR TARGET=2
   CPU 0			; 6502
-  ALDC   =&FE84		; Network controller
+  ADLC   =&FEA0		; Network controller
   STNNUM =&FE18		; Station number links
-  STNNMI =&FE18		; Used in NMI routines
-  VIA    =&FE60		; 6522 VIA
+  INTOFF =&FE18   ; disable network NMIs
+  INTON  =&FE20   ; enable network NMIs
+  SYSVIA =&FE40   ; 6522 System VIA
   ROMSEL =&FE30		; ROM select register
-  TUBEIO =&FEE5		; Tube data port
+  TUBEIO =&FEE0		; Tube data port
 ELIF TARGET>2
   CPU 1			; 65c12
-  ALDC   =&FE84		; Network controller
+  ADLC   =&FE84		; Network controller
   STNNUM =0		; Read from Configuration
-  STNNMI =&0Dxx		; Used in NMI routines
-  VIA    =&FE60		; 6522 VIA
+  INTOFF =&FE38   ; disable network NMIs
+  INTON  =&FE3C   ; enable network NMIs
+  SYSVIA =&FE40   ; 6522 System VIA
   ROMSEL =&FE30		; ROM select register
-  TUBEIO =&FEE5		; Tube data port
+  TUBEIO =&FEE0		; Tube data port
 ENDIF
 
 OS_CLI=&FFF7:OSBYTE=&FFF4:OSWORD=&FFF1:OSWRCH=&FFEE

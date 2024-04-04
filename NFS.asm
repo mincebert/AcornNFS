@@ -241,7 +241,7 @@ TAX:TYA:LDY #&13:BNE L80E7    :\ Index into table and jump to dispatch to handle
 CPX #&05        :\ Check RPC call number
 .L80E3
 BCS L80F6       :\ Out of range, ignore and return
-LDY #&0E        :\ Offset 14 into dispatch table
+LDY #&0E        :\ Offset 14ï¿½into dispatch table
 
 \ Index into dispatch table and dispatch call
 \ -------------------------------------------
@@ -273,16 +273,16 @@ IF (VERSION AND &FFF0)=&340
   PHA:LDA &0DF0,X:PHA		:\ Get workspace byte
   BNE L811E			:\ Already set, skip hardware test
   INC &0DF0,X			:\ Set to &01
-  LDA &FE18:BEQ L8114		:\ Station links=0, disable NFS
-  CMP &FE18:BEQ L811E		:\ Station links valid, continue
+  LDA INTOFF:BEQ L8114	:\ Station links=0, disable NFS
+  CMP INTOFF:BEQ L811E	:\ Station links valid, continue
   .L8114
   SEC:ROR &0DF0,X		:\ Disable NFS in ROM workspace byte
   .L8118
   PLA:ASL A			:\ Get NFS enable/disable flag
 ELSE
   PHA:CMP #&01:BNE L811A	:\ Not Service 1, skip hardware check
-  LDA &FEA0:AND #&ED:BNE L8113	:\ Econet hardware absent, jump to disable
-  LDA &FEA1:AND #&DB:BEQ L811A	:\ Econet hardware present, jump to continue
+  LDA ADLC+0:AND #&ED:BNE L8113	:\ Econet hardware absent, jump to disable
+  LDA ADLC+1:AND #&DB:BEQ L811A	:\ Econet hardware present, jump to continue
   .L8113
   ROL &0DF0,X:SEC:ROR &0DF0,X	:\ Disable NFS in ROM workspace byte
   .L811A
@@ -300,8 +300,8 @@ BNE L8144                     :\ Not &FE, jump to Service &FF routine
 CPY #&00:BEQ L8183            :\ No Tube, exit
 LDX #&06:LDA #&14:JSR OSBYTE  :\ Explode font
 .L8134
-BIT &FEE0:BPL L8134           :\ Wait for character
-LDA &FEE1:BEQ L8181           :\ End on CHR$0
+BIT TUBEIO+0:BPL L8134        :\ Wait for character
+LDA TUBEIO+1:BEQ L8181        :\ End on CHR$0
 JSR OSWRCH:JMP L8134          :\ Print it and loop back
 
 .L8144
@@ -309,7 +309,7 @@ LDA #(L06AD-TUBE4) AND 255:STA &0220 :\ Claim EVENTV
 LDA #(L06AD-TUBE4) DIV 256:STA &0221
 LDA #(L0016-TUBE0) AND 255:STA &0202 :\ Claim BRKV
 LDA #(L0016-TUBE0) DIV 256:STA &0203
-LDA #&8E:STA &FEE0
+LDA #&8E:STA TUBEIO+0
 LDY #&00
 .L815F
 LDA TubeCode+&000,Y:STA &0400,Y :\ Copy Tube host code
@@ -439,7 +439,7 @@ JSR L865C                :\ Print inline text
 EQUS "Econet Station "
 LDY #&14:LDA (&9C),Y     :\ Get station number
 JSR L8DBD                :\ Print it in decimal
-LDA #&20:BIT &FEA1       :\ Test ALDC clock
+LDA #&20:BIT ADLC+1      :\ Test ADLC clock
 BEQ L825F                :\ Skip past if clock present
 JSR L865C                :\ Print inline text
 EQUS " No Clock"
@@ -551,7 +551,7 @@ BCS L8316       :\ All done
 LDA #&3F:STA (&9E),Y     :\ Clear receive buffer
 INC &A8:BNE L8307        :\ Step to next buffer
 .L8316
-LDA &FE18              :\ Read hardware links
+LDA INTOFF             :\ Read hardware links
 LDY #&14:STA (&9C),Y   :\ Store my station number
 JSR L9633
 LDA #&40:STA &0D64
@@ -1884,7 +1884,7 @@ JSR &0406       :\ 8BA1= 20 06 04     ..
 LDX &B0         :\ 8BA4= A6 B0       &0
 .L8BA6
 LDA &0F05,X     :\ 8BA6= BD 05 0F    =..
-STA &FEE5       :\ 8BA9= 8D E5 FE    .e~
+STA TUBEIO+5    :\ 8BA9= 8D E5 FE    .e~
 INX             :\ 8BAC= E8          h
 LDY #&06        :\ 8BAD= A0 06        .
 .L8BAF
@@ -1956,26 +1956,26 @@ LDY #&FF        :\ 8C24= A0 FF        .
 INY             :\ 8C26= C8          H
 INX             :\ 8C27= E8          h
 .L8C28
-LDA L8C4B,X  ; 8C28 BD 4B 8C    ½K.  Get char from command table
+LDA L8C4B,X  ; 8C28 BD 4B 8C    ï¿½K.  Get char from command table
 BMI L8C45    ; 8C2B 30 18       0.   b7=1, end of entry
-EOR (&BE),Y  ; 8C2D 51 BE       Q¾   Does it match?
-AND #&DF     ; 8C2F 29 DF       )ß   Ignore case
-BEQ L8C26    ; 8C31 F0 F3       ðó   Matches, loop for another char
-DEX          ; 8C33 CA          Ê    Doesn't match
+EOR (&BE),Y  ; 8C2D 51 BE       Qï¿½   Does it match?
+AND #&DF     ; 8C2F 29 DF       )ï¿½   Ignore case
+BEQ L8C26    ; 8C31 F0 F3       ï¿½ï¿½   Matches, loop for another char
+DEX          ; 8C33 CA          ï¿½    Doesn't match
 .L8C34
-INX          ; 8C34 E8          è    
-LDA L8C4B+0,X ; 8C35 BD 4B 8C    ½K.  
-BPL L8C34     ; 8C38 10 FA       .ú   Loop for end of entry
-LDA (&BE),Y   ; 8C3A B1 BE       ±¾   Get command line character
-INX           ; 8C3C E8          è    
-CMP #&2E      ; 8C3D C9 2E       É.   Is it abbreviated?
-BNE L8C24     ; 8C3F D0 E3       Ðã   No, loop back to check next entry
-INY           ; 8C41 C8          È    
-DEX           ; 8C42 CA          Ê    
-BCS L8C28     ; 8C43 B0 E3       °ã   Abbreviated, jump to get address byte and jump back here
+INX          ; 8C34 E8          ï¿½    
+LDA L8C4B+0,X ; 8C35 BD 4B 8C    ï¿½K.  
+BPL L8C34     ; 8C38 10 FA       .ï¿½   Loop for end of entry
+LDA (&BE),Y   ; 8C3A B1 BE       ï¿½ï¿½   Get command line character
+INX           ; 8C3C E8          ï¿½    
+CMP #&2E      ; 8C3D C9 2E       ï¿½.   Is it abbreviated?
+BNE L8C24     ; 8C3F D0 E3       ï¿½ï¿½   No, loop back to check next entry
+INY           ; 8C41 C8          ï¿½    
+DEX           ; 8C42 CA          ï¿½    
+BCS L8C28     ; 8C43 B0 E3       ï¿½ï¿½   Abbreviated, jump to get address byte and jump back here
 .L8C45
 PHA           ; 8C45 48          H    Push high byte of address
-LDA L8C4B+1,X ; 8C46 BD 4C 8C    ½L.  Get low byte
+LDA L8C4B+1,X ; 8C46 BD 4C 8C    ï¿½L.  Get low byte
 PHA           ; 8C49 48          H    Push low byte of address
 RTS           ; 8C4A 60          `    Jump to routine
  
