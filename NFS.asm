@@ -305,21 +305,21 @@ LDA TUBEIO+1:BEQ L8181        :\ End on CHR$0
 JSR OSWRCH:JMP L8134          :\ Print it and loop back
 
 .L8144
-LDA #(L06AD-TUBE4) AND 255:STA &0220 :\ Claim EVENTV
-LDA #(L06AD-TUBE4) DIV 256:STA &0221
-LDA #(L0016-TUBE0) AND 255:STA &0202 :\ Claim BRKV
-LDA #(L0016-TUBE0) DIV 256:STA &0203
+LDA #(L06AD) AND 255:STA &0220 :\ Claim EVENTV
+LDA #(L06AD) DIV 256:STA &0221
+LDA #(L0016) AND 255:STA &0202 :\ Claim BRKV
+LDA #(L0016) DIV 256:STA &0203
 LDA #&8E:STA TUBEIO+0
 LDY #&00
 .L815F
-LDA TubeCode+&000,Y:STA &0400,Y :\ Copy Tube host code
-LDA TubeCode+&100,Y:STA &0500,Y
-LDA TubeCode+&200,Y:STA &0600,Y
+LDA TubeCodeReloc+&000,Y:STA L0400+&000,Y :\ Copy Tube host code
+LDA TubeCodeReloc+&100,Y:STA L0400+&100,Y
+LDA TubeCodeReloc+&200,Y:STA L0400+&200,Y
 DEY:BNE L815F
-JSR L0421-TUBE4              :\ Initialise Tube host
+JSR L0421              :\ Initialise Tube host
 LDX #&60
 .L8179
-LDA TubeZero,X:STA &16,X	:\ Copy Tube idle code
+LDA TubeZeroReloc,X:STA &16,X	:\ Copy Tube idle code
 DEX:BPL L8179
 .L8181
 LDA #&00

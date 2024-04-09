@@ -63,7 +63,20 @@ OS_CLI=&FFF7:OSBYTE=&FFF4:OSWORD=&FFF1:OSWRCH=&FFEE
 OSWRCR=&FFEC:OSNEWL=&FFE7:OSASCI=&FFE3:OSRDCH=&FFE0
 OSFILE=&FFDD:OSARGS=&FFDA:OSBGET=&FFD7:OSBPUT=&FFD4
 OSGBPB=&FFD1:OSFIND=&FFCE
- 
+
+; Helper macro for copying a block of code assembled in main RAM (at the
+; address it will actually run at) into the ROM.
+;
+; stolen from IntegraB-OS recreation at:
+; https://github.com/kgl2001/IntegraB-OS/blob/201e3e357a7b523181d2ddcaaebec7f653ce7d94/IBOS.asm#L5470
+
+MACRO RELOCATE From, To
+    ASSERT To >= &8000 ; sanity check
+    COPYBLOCK From, P%, To
+    CLEAR From, P%
+    ORG To + (P% - From)
+ENDMACRO
+
 ORG &8000
 include "NFS.asm"	; Filing system and high level routines
 IF TUBE=&090
