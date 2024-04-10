@@ -64,7 +64,7 @@ ORG &0400
 .^TubeCode:JMP L0484	:\ Copy language across the Tube
 .L0403:JMP L06A7	:\ Copy Escape state across the Tube
 .^TubeClaim				:\ Tube Transfer/Claim/Release must be at &0406
-ASSERT TubeClaim = &0406	; well know entry point for external callers
+ASSERT TubeClaim = &0406	; well known entry point for external callers
 CMP #&80:BCC L0435	:\ If <&80, data transfer action
 CMP #&C0:BCS L0428	:\ &C0-&FF - jump to claim Tube
 :
@@ -526,5 +526,5 @@ STA TUBER1:RTS		:\ Send byte
 BIT TUBES2:BPL L06C5	:\ Loop until data present
 LDA TUBER2:RTS		:\ Get byte
 
-RELOCATE &0400, TubeCodeReloc
+RELOCATE TubeCode, TubeCodeReloc
 }
