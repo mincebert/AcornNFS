@@ -20,39 +20,39 @@ ORG &0016
 
 \ BRK handler
 \ -----------
-.^L0016
-LDA #&FF:JSR L069E	:\ Send &FF to R4 to interupt CoPro
+.^TubeBRK
+LDA #&FF:JSR TubeSendR4	:\ Send &FF to R4 to interupt CoPro
 LDA TUBER2		:\ Get ACK byte from CoPro via R2
-LDA #&00:JSR L0695	:\ Send &00 to R2 to specify ERROR
-TAY:LDA (&FD),Y:JSR L0695	:\ Send error number via R2
+LDA #&00:JSR TubeSendR2	:\ Send &00 to R2 to specify ERROR
+TAY:LDA (&FD),Y:JSR TubeSendR2	:\ Send error number via R2
 .L0029
-INY:LDA (&FD),Y:JSR L0695	:\ Send error character via R2
+INY:LDA (&FD),Y:JSR TubeSendR2	:\ Send error character via R2
 TAX:BNE L0029		:\ Loop until terminating &00 sent
 :
 \ Idle startup
 \ ------------
-.^L0032
+.^TubeIdleStartup
 LDX #&FF:TXS:CLI	:\ Clear stack, enable IRQs
 :
 \ Tube idle loop
 \ --------------
-.^L0036
+.^TubeIdle
 BIT TUBES1:BPL L0041	:\ No character in R1, check for command in R2
 .L003B
 LDA TUBER1:JSR OSWRCH	:\ Get character from R1 and send to OSWRCH
 .L0041
-BIT TUBES2:BPL L0036	:\ No command in R2, loop back
+BIT TUBES2:BPL TubeIdle	:\ No command in R2, loop back
 BIT TUBES1:BMI L003B	:\ Deal with pending character first
 LDX TUBER2
 .L004E
 STX L0050+1		:\ Get command from R2 and index into &05<X>
 .L0050
-JMP (L0500)		:\ Jump to command routine
+JMP (TubeJumpTbl)		:\ Jump to command routine
 
-.^L0053
+.^TubeXfrAddr
 EQUD &00008000		:\ Tube transfer address
 
-RELOCATE L0016, TubeZeroReloc
+RELOCATE TubeBRK, TubeZeroReloc
 }
 
 .TubeCodeReloc
@@ -61,9 +61,10 @@ ORG &0400
 
 \ Main Tube code copied to &0400-&06FF
 \ ====================================
-.^L0400:JMP L0484	:\ Copy language across the Tube
+.^TubeCode:JMP L0484	:\ Copy language across the Tube
 .L0403:JMP L06A7	:\ Copy Escape state across the Tube
-.L0406				:\ Tube Transfer/Claim/Release
+.^TubeClaim				:\ Tube Transfer/Claim/Release must be at &0406
+ASSERT TubeClaim = &0406	; well know entry point for external callers
 CMP #&80:BCC L0435	:\ If <&80, data transfer action
 CMP #&C0:BCS L0428	:\ &C0-&FF - jump to claim Tube
 :
@@ -73,13 +74,13 @@ ORA #&40		:\ Ensure release ID same as claim ID
 CMP &15:BNE L0434	:\ Not same as the claim ID, exit
 .L0414
 PHP:SEI			:\ Disable IRQs
-LDA #05:JSR L069E	:\ Send &05 via R4 to CoPro
-LDA &15:JSR L069E	:\ Send Tube ID to notify a Tube release
+LDA #05:JSR TubeSendR4	:\ Send &05 via R4 to CoPro
+LDA &15:JSR TubeSendR4	:\ Send Tube ID to notify a Tube release
 PLP			:\ Restore IRQs
 :
 \ Clear Tube status and owner
 \ ---------------------------
-.^L0421
+.^TubeClear
 LDA #&80
 STA &15			:\ Store Tube ID
 STA &14			:\ Set Tube status to 'free' and ID to 'unclaimed'
@@ -105,13 +106,13 @@ RTS
 .L0435
 PHP:SEI		:\ Disable IRQs
 STY &13:STX &12	:\ Store pointer to control block
-JSR L069E	:\ Send action code via R4 to interrupt CoPro
+JSR TubeSendR4	:\ Send action code via R4 to interrupt CoPro
 TAX		:\ Save action code in X
 LDY #&03	:\ Prepare to send 4 byte control block
 LDA &15
-JSR L069E	:\ Send Tube ID via R4
+JSR TubeSendR4	:\ Send Tube ID via R4
 .L0446
-LDA (TUBEWK+&12),Y:JSR L069E	:\ Send control block across Tube via R4
+LDA (TUBEWK+&12),Y:JSR TubeSendR4	:\ Send control block across Tube via R4
 DEY:BPL L0446
 LDY #&18:STY TUBES1		:\ Disable FIFO on R3, and NMI on R3 by default
 LDA L0518,X:STA TUBES1	:\ Set Tube I/O setting according to action code
@@ -119,15 +120,15 @@ LSR A:LSR A		:\ Move b1 to Carry (b1 set = Copro->I/O)
 BCC L0463		:\ I/O->CoPro, no pre-delay needed
 BIT TUBER3:BIT TUBER3	:\ Read R3 twice to delay & empty FIFO
 .L0463
-JSR L069E		:\ Send flag via R4 to synchronise
+JSR TubeSendR4		:\ Send flag via R4 to synchronise
 .L0466
 BIT TUBES4:BVC L0466	:\ Loop until data has left R4
 BCS L047A		:\ Carry still indicates direction, jump with CoPro->I/O
 CPX #&04:BNE L0482	:\ If not 'execute code' jump to finish
 .L0471
 JSR L0414		:\ Release Tube
-JSR L0695		:\ Send &80 via R2
-JMP L0032		:\ Jump to Tube Idle loop
+JSR TubeSendR2		:\ Send &80 via R2
+JMP TubeIdleStartup		:\ Jump to Tube Idle loop
 
 .L047A
 LSR A:BCC L0482        :\ If Tube I/O flag in b2 was clear, no NMI required, jump to exit
@@ -159,7 +160,7 @@ TXA:BEQ L0471		:\ If Soft Break, just release Tube, send &80 and jump to idle
 \ Language entered with OSBYTE 142, or on Hard Break
 \ --------------------------------------------------
 .L0498
-LDA #&FF:JSR L0406	:\ Claim Tube with ID=&3F
+LDA #&FF:JSR TubeClaim	:\ Claim Tube with ID=&3F
 BCC L0498			:\ Loop until Tube available
 JSR L04D2			:\ Find address to copy language to
 
@@ -174,9 +175,9 @@ LDA (TUBEWK),Y:STA TUBER3		:\ Get byte from ROM, send to CoPro via R3
 NOP:NOP:NOP			:\ Delay
 INY:BNE L04A6			:\ Loop for 256 bytes
 :
-INC L0053+1:BNE L04BC	:\ Update transfer address
-INC L0053+2:BNE L04BC
-INC L0053+3
+INC TubeXfrAddr+1:BNE L04BC	:\ Update transfer address
+INC TubeXfrAddr+2:BNE L04BC
+INC TubeXfrAddr+3
 .L04BC
 INC &01			:\ Update source address
 BIT &01:BVC L049B	:\ Check b6 of source high byte, loop until source=&C000
@@ -188,8 +189,8 @@ LDA #&04		:\ Drop through to execute code in CoPro
 \ Start a Tube transfer with address block at &0053
 \ -------------------------------------------------
 .L04CB
-LDY #&00:LDX #L0053 :\ Point to Tube control block
-JMP L0406		  :\ Jump to do a data transfer
+LDY #&00:LDX #TubeXfrAddr :\ Point to Tube control block
+JMP TubeClaim		  :\ Jump to do a data transfer
 
 \ Set Tube address to destination to copy language to
 \ ---------------------------------------------------
@@ -197,32 +198,33 @@ JMP L0406		  :\ Jump to do a data transfer
 \
 .L04D2
 LDA #&80
-STA L0053+1	:\ Set transfer address to &xxxx80xx
+STA TubeXfrAddr+1	:\ Set transfer address to &xxxx80xx
 STA &01			:\ Set source address to &80xx
 LDA #&20:AND &8006	:\ Check relocation bit in ROM type byte
-TAY:STY L0053	:\ If no relocation, A=0, Y=0, set address to &xxxx8000
+TAY:STY TubeXfrAddr	:\ If no relocation, A=0, Y=0, set address to &xxxx8000
 BEQ L04F7		:\ Jump forward with no relocation
 :
 LDX &8007		:\ Get offset to ROM copyright
 .L04E5
 INX:LDA &8000,X		:\ Skip past copyright message
 BNE L04E5		:\ Loop until terminating zero byte
-LDA &8001,X:STA L0053+0	:\ Get relocation address from after copyright message
-LDA &8002,X:STA L0053+1
+LDA &8001,X:STA TubeXfrAddr+0	:\ Get relocation address from after copyright message
+LDA &8002,X:STA TubeXfrAddr+1
 LDY &8003,X		:\ Get two high bytes to Y and A
 LDA &8004,X
 
 \ Set Tube address high bytes
 \ ---------------------------
 .L04F7
-STA L0053+3
-STY L0053+2		:\ Set Tube address high bytes
+STA TubeXfrAddr+3
+STY TubeXfrAddr+2		:\ Set Tube address high bytes
 RTS
 
 \ Tube R2 command entry block
 \ ===========================
 \ Has to be fixed at &0500 for jump dispatch
-.^L0500
+.^TubeJumpTbl
+ASSERT TubeJumpTbl = &0500		; perhaps not required as should use label
 EQUW L0537	:\ &00 OSRDCH
 EQUW L0596	:\ &02 OSCLI
 EQUW L05F2	:\ &04 OSBYTELO
@@ -268,7 +270,7 @@ JMP L053A		:\ Jump to send Carry and A
 .L0537
 JSR OSRDCH		:\ Wait for a character
 .L053A
-ROR A:JSR L0695	:\ Move carry to b7 and send via R2
+ROR A:JSR TubeSendR2	:\ Move carry to b7 and send via R2
 ROL A:JMP L059E	:\ Move A back, send via R2 and return to idle loop
 
 \ OSFIND
@@ -296,12 +298,12 @@ JSR L06C5		:\ Fetch four bytes for control block, returns X=&00
 STA &FF,X:DEX:BNE L0566
 JSR L06C5		:\ Wait for ARGS function via R2
 JSR OSARGS		:\ Do the OSARGS action
-JSR L0695		:\ Send A back via R2
+JSR TubeSendR2		:\ Send A back via R2
 LDX #&03
 .L0575
-LDA &00,X:JSR L0695 :\ Send four bytes from control block
+LDA &00,X:JSR TubeSendR2 :\ Send four bytes from control block
 DEX:BPL L0575
-JMP L0036		  :\ Jump to Tube idle loop
+JMP TubeIdle		  :\ Jump to Tube idle loop
 
 \�Read a string via R2 into string buffer at &0700
 \ ================================================
@@ -338,7 +340,7 @@ LDA #&7F		:\ Send &7F to CoPro
 BIT TUBES2:BVC L059E	:\ Loop until port free
 STA TUBER2	:\ Send byte in A
 .L05A6
-JMP L0036		:\ Jump to Tube idle loop
+JMP TubeIdle		:\ Jump to Tube idle loop
 
 \ OSFILE
 \ ======
@@ -354,10 +356,10 @@ JSR OSFILE		 :\ Do the OSFILE call
 
 \ During the OSFILE call the Tube system may be called to do a data transfer
 
-JSR L0695		:\ Send result back via R2
+JSR TubeSendR2		:\ Send result back via R2
 LDX #&10		:\ Send 16-byte control block back
 .L05C7
-LDA &01,X:JSR L0695 :\ Get byte from control block, send via R2
+LDA &01,X:JSR TubeSendR2 :\ Get byte from control block, send via R2
 DEX:BNE L05C7
 BEQ L05A6		:\ Jump to Tube idle loop
 
@@ -376,7 +378,7 @@ LDY #&00:JSR OSGBPB	:\ Do the OSGBPB call
 PHA			:\ Save result
 LDX #&0C
 .L05F6
-LDA &00,X:JSR L0695 :\ Send 13-byte control block
+LDA &00,X:JSR TubeSendR2 :\ Send 13-byte control block
 DEX:BPL L05F6
 PLA:JMP L053A	:\ Get result byte, jump to send Carry and A,
 				:\ then return to Tube idle loop
@@ -394,7 +396,7 @@ JSR OSBYTE		:\ Do the OSBYTE call
 BIT TUBES2:BVC L05FC	:\ Loop until port free
 STX TUBER2	:\ Send X via R2
 .L0604
-JMP L0036		:\ Return to Tube idle loop
+JMP TubeIdle		:\ Return to Tube idle loop
 
 \ OSBYTEHI - OSBYTE &80-&FF
 \ =========================
@@ -409,7 +411,7 @@ JSR OSBYTE		:\ Do the OSBYTE call
 \ byte.
 
 EOR #&9D:BEQ L0604	:\ If OSBYTE &9D, Fast BPUT, jump stright back to idle loop
-ROR A:JSR L0695	:\ Move Carry into b7 of A, send via R2
+ROR A:JSR TubeSendR2	:\ Move Carry into b7 of A, send via R2
 
 \ Send bytes in Y, X via R2, then jump to Tube idle loop
 \ ------------------------------------------------------
@@ -456,7 +458,7 @@ BIT TUBES2:BVC L065A	:\ Loop until R2 free
 STY TUBER2	:\ Send byte via R2
 DEX:BPL L0657
 .L0665
-JMP L0036		:\ Return to Tube idle loop
+JMP TubeIdle		:\ Return to Tube idle loop
 
 \ RDLINE - Read a line
 \ ====================
@@ -473,23 +475,23 @@ LDA #&FF:JMP L059E :\ Send &FF via R2 for Escape, return to Tube idle loop
 
 .L0680
 LDX #&00		 :\ Point to start of string buffer
-LDA #&7F:JSR L0695 :\ Send &7F via R2 to indicate no Escape
+LDA #&7F:JSR TubeSendR2 :\ Send &7F via R2 to indicate no Escape
 .L0687
-LDA &0700,X:JSR L0695 :\ Get byte from string buffer, send via R2
+LDA &0700,X:JSR TubeSendR2 :\ Get byte from string buffer, send via R2
 INX			:\ Move to next byte
 CMP #&0D:BNE L0687	:\ Loop until <cr> sent
-JMP L0036		:\ Return to Tube idle loop
+JMP TubeIdle		:\ Return to Tube idle loop
 
 \ Send byte in A via R2
 \ =====================
-.^L0695
-BIT TUBES2:BVC L0695	:\ Loop until R2 free
+.^TubeSendR2
+BIT TUBES2:BVC TubeSendR2	:\ Loop until R2 free
 STA TUBER2:RTS		:\ Send byte
 
 \ Send byte in A via R4
 \ =====================
-.^L069E
-BIT TUBES4:BVC L069E	:\ Loop until R4 free
+.^TubeSendR4
+BIT TUBES4:BVC TubeSendR4	:\ Loop until R4 free
 STA TUBER4:RTS		:\ Send byte
 
 \ Copy Escape state across Tube
@@ -501,7 +503,7 @@ BMI L06BC		:\ Interupt client with byte send via R1
 
 \ Send event across Tube
 \ ======================
-.^L06AD
+.^TubeSendEvt
 PHA			 :\ Save A
 LDA #&00:JSR L06BC :\ Send &00 via R1, generating client IRQ
 

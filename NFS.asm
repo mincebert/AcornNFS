@@ -305,18 +305,18 @@ LDA TUBEIO+1:BEQ L8181        :\ End on CHR$0
 JSR OSWRCH:JMP L8134          :\ Print it and loop back
 
 .L8144
-LDA #(L06AD) AND 255:STA &0220 :\ Claim EVENTV
-LDA #(L06AD) DIV 256:STA &0221
-LDA #(L0016) AND 255:STA &0202 :\ Claim BRKV
-LDA #(L0016) DIV 256:STA &0203
+LDA #(TubeSendEvt) AND 255:STA &0220 :\ Claim EVENTV
+LDA #(TubeSendEvt) DIV 256:STA &0221
+LDA #(TubeBRK) AND 255:STA &0202 :\ Claim BRKV
+LDA #(TubeBRK) DIV 256:STA &0203
 LDA #&8E:STA TUBEIO+0
 LDY #&00
 .L815F
-LDA TubeCodeReloc+&000,Y:STA L0400+&000,Y :\ Copy Tube host code
-LDA TubeCodeReloc+&100,Y:STA L0400+&100,Y
-LDA TubeCodeReloc+&200,Y:STA L0400+&200,Y
+LDA TubeCodeReloc+&000,Y:STA TubeCode+&000,Y :\ Copy Tube host code
+LDA TubeCodeReloc+&100,Y:STA TubeCode+&100,Y
+LDA TubeCodeReloc+&200,Y:STA TubeCode+&200,Y
 DEY:BNE L815F
-JSR L0421              :\ Initialise Tube host
+JSR TubeClear              :\ Initialise Tube host
 LDX #&60
 .L8179
 LDA TubeZeroReloc,X:STA &16,X	:\ Copy Tube idle code
@@ -1880,7 +1880,7 @@ INX             :\ 8B9D= E8          h
 BNE L8BA1       :\ 8B9E= D0 01       P.
 INY             :\ 8BA0= C8          H
 .L8BA1
-JSR &0406       :\ 8BA1= 20 06 04     ..
+JSR TubeClaim       :\ 8BA1= 20 06 04     ..
 LDX &B0         :\ 8BA4= A6 B0       &0
 .L8BA6
 LDA &0F05,X     :\ 8BA6= BD 05 0F    =..
@@ -1893,7 +1893,7 @@ BNE L8BAF       :\ 8BB0= D0 FD       P}
 DEC &B2         :\ 8BB2= C6 B2       F2
 BNE L8BA6       :\ 8BB4= D0 F0       Pp
 LDA #&83        :\ 8BB6= A9 83       ).
-JSR &0406       :\ 8BB8= 20 06 04     ..
+JSR TubeClaim       :\ 8BB8= 20 06 04     ..
 .L8BBB
 JMP L89D4       :\ 8BBB= 4C D4 89    LT.
  
@@ -1939,7 +1939,7 @@ JSR L8A5A       :\ 8C0E= 20 5A 8A     Z.
 BEQ L8BBB       :\ 8C11= F0 A8       p(
 .L8C13
 LDA #&C3        :\ 8C13= A9 C3       )C
-JSR &0406       :\ 8C15= 20 06 04     ..
+JSR TubeClaim       :\ 8C15= 20 06 04     ..
 BCC L8C13       :\ 8C18= 90 F9       .y
 RTS             :\ 8C1A= 60          `
 
@@ -2251,7 +2251,7 @@ JSR L8C13       :\ 8E1D= 20 13 8C     ..
 LDX #&09        :\ 8E20= A2 09       ".
 LDY #&0F        :\ 8E22= A0 0F        .
 LDA #&04        :\ 8E24= A9 04       ).
-JMP &0406       :\ 8E26= 4C 06 04    L..
+JMP TubeClaim       :\ 8E26= 4C 06 04    L..
  
 .L8E29
 ROL A           :\ 8E29= 2A          *
