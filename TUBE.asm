@@ -169,7 +169,7 @@ JSR L04D2			:\ Find address to copy language to
 .L049B
 LDA #&07:JSR L04CB	:\ Start I/O->CoPro 256-byte transfer from (&53-&56)
 :
-LDY #&00:STY &00		:\ Start copying from &8000
+LDY #&00:STY TUBEWK+&00		:\ Start copying from &8000
 .L04A6
 LDA (TUBEWK),Y:STA TUBER3		:\ Get byte from ROM, send to CoPro via R3
 NOP:NOP:NOP			:\ Delay
@@ -179,8 +179,8 @@ INC TubeXfrAddr+1:BNE L04BC	:\ Update transfer address
 INC TubeXfrAddr+2:BNE L04BC
 INC TubeXfrAddr+3
 .L04BC
-INC &01			:\ Update source address
-BIT &01:BVC L049B	:\ Check b6 of source high byte, loop until source=&C000
+INC TUBEWK+&01			:\ Update source address
+BIT TUBEWK+&01:BVC L049B	:\ Check b6 of source high byte, loop until source=&C000
 :
 JSR L04D2		:\ Find start address language copied to
 LDA #&04		:\ Drop through to execute code in CoPro
@@ -199,7 +199,7 @@ JMP TubeClaim		  :\ Jump to do a data transfer
 .L04D2
 LDA #&80
 STA TubeXfrAddr+1	:\ Set transfer address to &xxxx80xx
-STA &01			:\ Set source address to &80xx
+STA TUBEWK+&01		:\ Set source address to &80xx
 LDA #&20:AND &8006	:\ Check relocation bit in ROM type byte
 TAY:STY TubeXfrAddr	:\ If no relocation, A=0, Y=0, set address to &xxxx8000
 BEQ L04F7		:\ Jump forward with no relocation
@@ -301,7 +301,7 @@ JSR OSARGS		:\ Do the OSARGS action
 JSR TubeSendR2		:\ Send A back via R2
 LDX #&03
 .L0575
-LDA &00,X:JSR TubeSendR2 :\ Send four bytes from control block
+LDA TUBEWK+&00,X:JSR TubeSendR2 :\ Send four bytes from control block
 DEX:BPL L0575
 JMP TubeIdle		  :\ Jump to Tube idle loop
 
@@ -347,10 +347,10 @@ JMP TubeIdle		:\ Jump to Tube idle loop
 .L05A9
 LDX #&10		:\ Loop for 16-byte control block
 .L05AB
-JSR L06C5:STA &01,X :\ Get byte via R2, store in control block
+JSR L06C5:STA TUBEWK+&01,X :\ Get byte via R2, store in control block
 DEX:BNE L05AB
 JSR L0582		:\ Read string to &0700, returns YX=&0700
-STX &00:STY &01		 :\ Point control block to string
+STX TUBEWK+&00:STY TUBEWK+&01		 :\ Point control block to string
 LDY #&00:JSR L06C5 :\ Wait for action byte via R2, returns Y=&00
 JSR OSFILE		 :\ Do the OSFILE call
 
@@ -359,7 +359,7 @@ JSR OSFILE		 :\ Do the OSFILE call
 JSR TubeSendR2		:\ Send result back via R2
 LDX #&10		:\ Send 16-byte control block back
 .L05C7
-LDA &01,X:JSR TubeSendR2 :\ Get byte from control block, send via R2
+LDA TUBEWK+&01,X:JSR TubeSendR2 :\ Get byte from control block, send via R2
 DEX:BNE L05C7
 BEQ L05A6		:\ Jump to Tube idle loop
 
@@ -378,7 +378,7 @@ LDY #&00:JSR OSGBPB	:\ Do the OSGBPB call
 PHA			:\ Save result
 LDX #&0C
 .L05F6
-LDA &00,X:JSR TubeSendR2 :\ Send 13-byte control block
+LDA TUBEWK+&00,X:JSR TubeSendR2 :\ Send 13-byte control block
 DEX:BPL L05F6
 PLA:JMP L053A	:\ Get result byte, jump to send Carry and A,
 				:\ then return to Tube idle loop
@@ -466,7 +466,7 @@ JMP TubeIdle		:\ Return to Tube idle loop
 LDX #&04
 .L066A
 JSR L06C5		:\ Fetch five bytes into control block
-STA &00,X
+STA TUBEWK+&00,X
 DEX:BPL L066A
 INX:LDY #&00:TXA	:\ Point XY to control block at &0000
 JSR OSWORD		:\ Call OSWORD A=0 to read the line
