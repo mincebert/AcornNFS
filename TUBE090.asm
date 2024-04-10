@@ -45,6 +45,12 @@ BIT TUBES2:BPL TubeIdle	:\ No command in R2, loop back
 BIT TUBES1:BMI L003B	:\ Deal with pending character first
 LDX TUBER2
 .L004E
+PHA
+TXA
+CLC
+ADC TubeJumpTbl MOD 256
+TAX
+PLA
 STX L0050+1		:\ Get command from R2 and index into &05<X>
 .L0050
 JMP (TubeJumpTbl)		:\ Jump to command routine
