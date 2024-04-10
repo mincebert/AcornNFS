@@ -319,7 +319,7 @@ DEY:BNE L815F
 JSR TubeClear              :\ Initialise Tube host
 LDX #&60
 .L8179
-LDA TubeZeroReloc,X:STA &16,X	:\ Copy Tube idle code
+LDA TubeBRKReloc,X:STA &16,X	:\ Copy Tube idle code
 DEX:BPL L8179
 .L8181
 LDA #&00

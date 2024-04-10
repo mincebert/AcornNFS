@@ -14,7 +14,7 @@ TUBEWK=&0000
 
 \ Tube idle loop code copied to &0016-&0057
 \ =========================================
-.TubeZeroReloc
+.TubeBRKReloc
 {
 ORG &0016
 
@@ -52,7 +52,7 @@ JMP (TubeJumpTbl)		:\ Jump to command routine
 .^TubeXfrAddr
 EQUD &00008000		:\ Tube transfer address
 
-RELOCATE TubeBRK, TubeZeroReloc
+RELOCATE TubeBRK, TubeBRKReloc
 }
 
 .TubeCodeReloc
